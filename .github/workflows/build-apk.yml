@@ -17,9 +17,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Siapkan Android SDK
-        uses: android-actions/setup-android@v3
-
+      # Runner ubuntu-latest sudah punya Android SDK bawaan (ANDROID_HOME)
       - name: Build APK
         run: |
           chmod +x ./gradlew
