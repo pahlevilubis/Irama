@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,10 +25,21 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk Irama.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Irama-APK
-          path: app/build/outputs/apk/release/*.apk
+          path: Irama.apk
           if-no-files-found: error
+
+      # APK juga diterbitkan di halaman Releases supaya bisa di-download langsung dari HP
+      - name: Terbitkan di Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Irama build ${{ github.run_number }}
+          body: APK Irama siap pasang. Download Irama.apk di bawah ini.
+          files: Irama.apk
+          make_latest: true
