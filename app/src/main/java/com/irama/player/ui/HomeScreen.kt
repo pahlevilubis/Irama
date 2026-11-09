@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
@@ -101,6 +102,11 @@ fun HomeScreen(
     val cs = MaterialTheme.colorScheme
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
+
+    if (showAbout) {
+        AboutDialog(onDismiss = { showAbout = false })
+    }
 
     BackHandler(enabled = searching && !overlayOpen) {
         searching = false
@@ -131,7 +137,19 @@ fun HomeScreen(
                         )
                         LaunchedEffect(Unit) { focus.requestFocus() }
                     } else {
-                        Text("Irama", fontWeight = FontWeight.Bold, color = cs.primary)
+                        Column(
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showAbout = true }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("Irama", fontWeight = FontWeight.Bold, color = cs.primary)
+                            Text(
+                                "by $APP_CREATOR",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = cs.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -148,6 +166,9 @@ fun HomeScreen(
                         }
                         IconButton(onClick = onRefresh) {
                             Icon(Icons.Rounded.Refresh, contentDescription = "Pindai ulang lagu")
+                        }
+                        IconButton(onClick = { showAbout = true }) {
+                            Icon(Icons.Rounded.Info, contentDescription = "Tentang aplikasi")
                         }
                     }
                 },

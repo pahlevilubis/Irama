@@ -119,7 +119,12 @@ private fun PermissionScreen(askedOnce: Boolean, onRequest: () -> Unit, onOpenSe
             }
             Spacer(Modifier.height(24.dp))
             Text("Irama", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+            Text(
+                "by $APP_CREATOR",
+                style = MaterialTheme.typography.titleSmall,
+                color = cs.primary
+            )
+            Spacer(Modifier.height(16.dp))
             Text(
                 "Izinkan Irama membaca file musik di HP kamu supaya lagu-lagunya bisa diputar. " +
                     "Semua diputar offline, tidak ada data yang dikirim ke mana pun.",

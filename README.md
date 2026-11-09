@@ -1,5 +1,7 @@
 # Irama — Pemutar Musik Offline untuk Android
 
+Dibuat oleh **Pahlevi Lubis**.
+
 Aplikasi pemutar lagu yang sudah ada di HP (offline), dibuat untuk Samsung Galaxy S21 Ultra
 (jalan juga di HP Android 10 ke atas lainnya).
 

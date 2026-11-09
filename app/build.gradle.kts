@@ -12,8 +12,8 @@ android {
         applicationId = "com.irama.player"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Kunci tanda tangan tetap, supaya update APK bisa langsung ditimpa tanpa uninstall
