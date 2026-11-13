@@ -13,6 +13,11 @@ Aplikasi pemutar lagu yang sudah ada di HP (offline), dibuat untuk Samsung Galax
 - **13 Mode Suara**: Normal, Bass Mantap, Pop, Rock, Dangdut, Jazz, Klasik, Vokal, Hip-Hop, Elektronik, Akustik, Treble, Santai (+ Kustom)
 - **Efek**: Bass Boost, Surround 3D, Penguat Volume — semua tersimpan otomatis
 - **Acak (shuffle)**, **Ulangi** (semua / satu lagu), **Timer Tidur** (15–90 menit)
+- **Download audio dari YouTube** (untuk pemakaian pribadi) — tempel link, atau di aplikasi YouTube
+  ketuk *Bagikan → Irama*. Hasilnya file M4A lengkap dengan judul, artis, dan cover di folder
+  `Music/Irama`, langsung muncul di daftar lagu. Memakai library [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor).
+  Kalau suatu saat gagal terus, biasanya YouTube berubah: naikkan versi NewPipeExtractor di
+  `app/build.gradle.kts` lalu build ulang.
 - Auto pause saat earphone dicabut, tampilan gelap dengan cover album
 
 ---

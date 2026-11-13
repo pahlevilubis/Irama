@@ -19,6 +19,7 @@ import com.irama.player.data.groupAlbums
 import com.irama.player.data.groupArtists
 import com.irama.player.data.groupFolders
 import com.irama.player.data.toMediaItem
+import com.irama.player.download.YtDownloader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -97,6 +98,11 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 refresh()
             }
         }, ContextCompat.getMainExecutor(ctx))
+
+        // Lagu hasil download YouTube langsung masuk daftar
+        viewModelScope.launch {
+            YtDownloader.finished.collect { reloadLibrary() }
+        }
 
         // Update posisi lagu untuk progress bar
         viewModelScope.launch {

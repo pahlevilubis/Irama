@@ -33,7 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
@@ -96,6 +96,7 @@ fun HomeScreen(
     onPlay: PlayAction,
     onOpenDetail: (Detail) -> Unit,
     onOpenEq: () -> Unit,
+    onOpenDownload: () -> Unit,
     onRefresh: () -> Unit,
     miniPlayer: @Composable () -> Unit,
 ) {
@@ -161,14 +162,14 @@ fun HomeScreen(
                         IconButton(onClick = { searching = true }) {
                             Icon(Icons.Rounded.Search, contentDescription = "Cari")
                         }
+                        IconButton(onClick = onOpenDownload) {
+                            Icon(Icons.Rounded.Download, contentDescription = "Download dari YouTube")
+                        }
                         IconButton(onClick = onOpenEq) {
                             Icon(Icons.Rounded.Equalizer, contentDescription = "Equalizer")
                         }
                         IconButton(onClick = onRefresh) {
                             Icon(Icons.Rounded.Refresh, contentDescription = "Pindai ulang lagu")
-                        }
-                        IconButton(onClick = { showAbout = true }) {
-                            Icon(Icons.Rounded.Info, contentDescription = "Tentang aplikasi")
                         }
                     }
                 },
@@ -186,7 +187,7 @@ fun HomeScreen(
                 loading && songs.isEmpty() -> {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
-                songs.isEmpty() -> EmptyLibrary(onRefresh)
+                songs.isEmpty() -> EmptyLibrary(onRefresh, onOpenDownload)
                 searching -> SearchResults(songs, query, state.mediaId, onPlay)
                 else -> LibraryPager(songs, albums, artists, folders, state.mediaId, onPlay, onOpenDetail)
             }
@@ -195,7 +196,7 @@ fun HomeScreen(
 }
 
 @Composable
-private fun EmptyLibrary(onRefresh: () -> Unit) {
+private fun EmptyLibrary(onRefresh: () -> Unit, onOpenDownload: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
@@ -222,6 +223,12 @@ private fun EmptyLibrary(onRefresh: () -> Unit) {
             Icon(Icons.Rounded.Refresh, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text("Pindai Ulang")
+        }
+        Spacer(Modifier.height(8.dp))
+        FilledTonalButton(onClick = onOpenDownload) {
+            Icon(Icons.Rounded.Download, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Download dari YouTube")
         }
     }
 }

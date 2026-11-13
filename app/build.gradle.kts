@@ -12,8 +12,8 @@ android {
         applicationId = "com.irama.player"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // Kunci tanda tangan tetap, supaya update APK bisa langsung ditimpa tanpa uninstall
@@ -42,6 +42,8 @@ android {
     }
 
     compileOptions {
+        // NewPipeExtractor memakai API Java baru; desugaring membuatnya jalan di semua versi Android
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -51,6 +53,18 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    packaging {
+        resources {
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*",
+                "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+            )
+        }
     }
 
     lint {
@@ -75,4 +89,9 @@ dependencies {
 
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-session:1.5.1")
+
+    // Download audio YouTube (library yang sama dengan aplikasi NewPipe)
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 }

@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,6 +51,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.irama.player.audio.AudioFx
 import com.irama.player.audio.SleepTimer
+import com.irama.player.download.ShareInbox
+import com.irama.player.download.YtDownloader
 
 @Composable
 fun IramaRoot(vm: PlayerViewModel = viewModel()) {
@@ -159,6 +162,22 @@ private fun MainScreen(vm: PlayerViewModel) {
     var detail by remember { mutableStateOf<Detail?>(null) }
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     var showEq by rememberSaveable { mutableStateOf(false) }
+    var showDownload by rememberSaveable { mutableStateOf(false) }
+
+    // Link YouTube yang dibagikan ke Irama → buka layar Download dan langsung proses
+    val context = LocalContext.current
+    val shared by ShareInbox.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(shared) {
+        val text = shared ?: return@LaunchedEffect
+        ShareInbox.consume()
+        if (YtDownloader.enqueue(text)) {
+            showPlayer = false
+            showEq = false
+            showDownload = true
+        } else {
+            Toast.makeText(context, "Yang dibagikan bukan link YouTube", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val miniPlayer: @Composable () -> Unit = {
         MiniPlayer(
@@ -179,10 +198,11 @@ private fun MainScreen(vm: PlayerViewModel) {
             folders = folders,
             loading = loading,
             state = state,
-            overlayOpen = detail != null || showPlayer || showEq,
+            overlayOpen = detail != null || showPlayer || showEq || showDownload,
             onPlay = play,
             onOpenDetail = { detail = it },
             onOpenEq = { showEq = true },
+            onOpenDownload = { showDownload = true },
             onRefresh = vm::reloadLibrary,
             miniPlayer = miniPlayer,
         )
@@ -195,6 +215,10 @@ private fun MainScreen(vm: PlayerViewModel) {
                 onPlay = play,
                 miniPlayer = miniPlayer,
             )
+        }
+
+        SlideLayer(if (showDownload) Unit else null) {
+            DownloadScreen(onBack = { showDownload = false }, miniPlayer = miniPlayer)
         }
 
         SlideLayer(if (showPlayer && state.hasMedia) Unit else null, fromBottom = true) {
@@ -222,10 +246,11 @@ private fun MainScreen(vm: PlayerViewModel) {
     }
 
     // Tombol Back: tutup lapisan paling atas dulu
-    BackHandler(enabled = showEq || showPlayer || detail != null) {
+    BackHandler(enabled = showEq || showPlayer || showDownload || detail != null) {
         when {
             showEq -> showEq = false
             showPlayer -> showPlayer = false
+            showDownload -> showDownload = false
             else -> detail = null
         }
     }

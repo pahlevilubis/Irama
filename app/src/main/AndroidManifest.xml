@@ -15,6 +15,9 @@
     <!-- Equalizer & efek suara -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- Download audio dari YouTube -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".IramaApplication"
         android:allowBackup="true"
@@ -32,6 +35,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Muncul di menu Bagikan aplikasi YouTube -->
+            <intent-filter android:label="Download ke Irama">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 
