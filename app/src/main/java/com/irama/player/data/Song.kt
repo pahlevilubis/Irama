@@ -15,9 +15,18 @@ data class Song(
     val durationMs: Long,
     val folder: String,
     val track: Int,
+    val displayName: String = "",
+    val sizeBytes: Long = 0L,
+    val mime: String = "",
+    /** Waktu file ditambahkan (detik sejak 1970). */
+    val dateAdded: Long = 0L,
 ) {
     /** ID yang dipakai pemutar (sama dengan URI lagu). */
     val mediaId: String = uri.toString()
+
+    /** Ekstensi file termasuk titik, misalnya ".mp3". */
+    val extension: String
+        get() = displayName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
 }
 
 data class AlbumGroup(

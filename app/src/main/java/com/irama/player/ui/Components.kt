@@ -12,9 +12,11 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,7 +31,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -138,14 +142,21 @@ fun AlbumArt(
 
 // ---------- Baris lagu ----------
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
+fun SongRow(
+    song: Song,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    onMore: (() -> Unit)? = null,
+    isFavorite: Boolean = false,
+) {
     val cs = MaterialTheme.colorScheme
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .combinedClickable(onClick = onClick, onLongClick = onMore)
+            .padding(start = 16.dp, end = if (onMore != null) 4.dp else 16.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AlbumArt(song.uri, Modifier.size(52.dp))
@@ -168,9 +179,23 @@ fun SongRow(song: Song, isCurrent: Boolean, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
+        if (isFavorite) {
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                Icons.Rounded.Favorite,
+                contentDescription = "Favorit",
+                tint = cs.secondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
         if (isCurrent) {
             Spacer(Modifier.width(8.dp))
             Icon(Icons.Rounded.GraphicEq, contentDescription = "Sedang diputar", tint = cs.primary)
+        }
+        if (onMore != null) {
+            IconButton(onClick = onMore) {
+                Icon(Icons.Rounded.MoreVert, contentDescription = "Menu lagu", tint = cs.onSurfaceVariant)
+            }
         }
     }
 }

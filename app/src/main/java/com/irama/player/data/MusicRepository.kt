@@ -7,8 +7,11 @@ import android.provider.MediaStore
 /** Membaca semua lagu yang tersimpan di HP lewat MediaStore. */
 object MusicRepository {
 
-    /** Lagu lebih pendek dari ini (voice note, nada dering) diabaikan. */
+    /** Lagu lebih pendek dari ini (voice note, nada dering) diabaikan — kecuali di folder Irama. */
     private const val MIN_DURATION_MS = 30_000L
+
+    /** Folder milik Irama (hasil download & rekaman) selalu ditampilkan berapa pun durasinya. */
+    const val IRAMA_FOLDER = "Music/Irama/"
 
     fun loadSongs(context: Context): List<Song> {
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
@@ -22,9 +25,14 @@ object MusicRepository {
             MediaStore.Audio.Media.DURATION,
             MediaStore.Audio.Media.RELATIVE_PATH,
             MediaStore.Audio.Media.TRACK,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.DATE_ADDED,
         )
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} >= ?"
-        val args = arrayOf(MIN_DURATION_MS.toString())
+        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND " +
+            "(${MediaStore.Audio.Media.DURATION} >= ? OR ${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?)"
+        val args = arrayOf(MIN_DURATION_MS.toString(), "$IRAMA_FOLDER%")
+        val titles = TitleOverrides.all(context)
 
         val result = ArrayList<Song>()
         context.contentResolver.query(collection, projection, selection, args, null)?.use { c ->
@@ -37,20 +45,29 @@ object MusicRepository {
             val durCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
             val pathCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.RELATIVE_PATH)
             val trackCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+            val sizeCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+            val mimeCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+            val dateCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
 
             while (c.moveToNext()) {
                 val id = c.getLong(idCol)
-                val fileName = c.getString(nameCol).orEmpty().substringBeforeLast('.')
+                val displayName = c.getString(nameCol).orEmpty()
+                val fileName = displayName.substringBeforeLast('.')
+                val tagTitle = c.getString(titleCol).cleanOr(fileName.ifBlank { "Tanpa judul" })
                 result += Song(
                     id = id,
                     uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id),
-                    title = c.getString(titleCol).cleanOr(fileName.ifBlank { "Tanpa judul" }),
+                    title = titles[id] ?: tagTitle,
                     artist = c.getString(artistCol).cleanOr("Artis tidak dikenal"),
                     album = c.getString(albumCol).cleanOr("Album tidak dikenal"),
                     albumId = c.getLong(albumIdCol),
-                    durationMs = c.getLong(durCol),
+                    durationMs = if (c.isNull(durCol)) 0L else c.getLong(durCol),
                     folder = c.getString(pathCol).orEmpty(),
                     track = if (c.isNull(trackCol)) 0 else c.getInt(trackCol),
+                    displayName = displayName,
+                    sizeBytes = if (c.isNull(sizeCol)) 0L else c.getLong(sizeCol),
+                    mime = c.getString(mimeCol).orEmpty(),
+                    dateAdded = if (c.isNull(dateCol)) 0L else c.getLong(dateCol),
                 )
             }
         }

@@ -1,30 +1,26 @@
 package com.irama.player.download
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaMuxer
-import android.os.Environment
-import android.provider.MediaStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.irama.player.data.LibraryEvents
+import com.irama.player.data.MediaFiles
+import com.irama.player.data.MusicRepository
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -91,10 +87,6 @@ object YtDownloader {
 
     private val _jobs = MutableStateFlow<List<Job>>(emptyList())
     val jobs: StateFlow<List<Job>> = _jobs.asStateFlow()
-
-    private val _finished = MutableSharedFlow<Unit>(extraBufferCapacity = 8)
-    /** Berbunyi setiap kali satu lagu selesai tersimpan (untuk memuat ulang daftar lagu). */
-    val finished: SharedFlow<Unit> = _finished.asSharedFlow()
 
     private lateinit var app: Context
     private lateinit var client: OkHttpClient
@@ -200,12 +192,11 @@ object YtDownloader {
                 raw
             }
 
-            saveToMusic(finalFile, title)
-            delay(1500) // beri waktu pemindai media Android membaca file baru
+            MediaFiles.saveAudio(app, finalFile, title, MusicRepository.IRAMA_FOLDER)
             update(id) {
                 it.copy(phase = Phase.DONE, progress = 1f, message = "Selesai • tersimpan di Music/Irama (${mb(finalFile.length())})")
             }
-            _finished.tryEmit(Unit)
+            LibraryEvents.notifyChanged()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
@@ -397,44 +388,9 @@ object YtDownloader {
         }
     }
 
-    // ---------- Simpan ke folder Music/Irama ----------
-
-    private fun saveToMusic(file: File, title: String) {
-        val resolver = app.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.Audio.Media.DISPLAY_NAME, safeFileName(title) + ".m4a")
-            put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
-            put(MediaStore.Audio.Media.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/Irama")
-            put(MediaStore.Audio.Media.IS_PENDING, 1)
-        }
-        val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        val uri = resolver.insert(collection, values)
-            ?: throw IOException("Tidak bisa membuat file di folder Music")
-        try {
-            val out = resolver.openOutputStream(uri) ?: throw IOException("Tidak bisa menulis file")
-            out.use { o -> file.inputStream().use { it.copyTo(o, 256 * 1024) } }
-            val done = ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) }
-            resolver.update(uri, done, null, null)
-        } catch (e: Exception) {
-            try {
-                resolver.delete(uri, null, null)
-            } catch (ignored: Exception) {
-            }
-            throw e
-        }
-    }
-
     // ---------- Utilitas ----------
 
     private class NoAudioException : IOException("no audio")
-
-    private fun safeFileName(s: String): String =
-        s.replace(Regex("""[\\/:*?"<>|\p{Cntrl}]"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-            .take(100)
-            .trimEnd('.', ' ')
-            .ifBlank { "Audio YouTube" }
 
     private fun mb(bytes: Long): String = String.format(Locale.US, "%.1f MB", bytes / 1_048_576.0)
 

@@ -18,6 +18,9 @@
     <!-- Download audio dari YouTube -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Rekam suara -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <application
         android:name=".IramaApplication"
         android:allowBackup="true"

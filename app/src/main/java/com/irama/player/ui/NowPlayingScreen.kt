@@ -22,7 +22,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Equalizer
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Pause
@@ -57,12 +60,15 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import kotlinx.coroutines.delay
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun NowPlayingScreen(
@@ -78,6 +84,10 @@ fun NowPlayingScreen(
     onRepeat: () -> Unit,
     onOpenEq: () -> Unit,
     onSleep: (Int?) -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onMore: () -> Unit,
+    onSpeed: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
     var showSleep by remember { mutableStateOf(false) }
@@ -136,8 +146,8 @@ fun NowPlayingScreen(
                         )
                         Text(fxLabel, style = MaterialTheme.typography.labelMedium, color = cs.primary)
                     }
-                    IconButton(onClick = onOpenEq) {
-                        Icon(Icons.Rounded.Equalizer, contentDescription = "Equalizer")
+                    IconButton(onClick = onMore) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = "Menu lagu")
                     }
                 }
 
@@ -155,25 +165,37 @@ fun NowPlayingScreen(
 
                 Spacer(Modifier.weight(0.6f))
 
-                // Judul & artis
-                Text(
-                    state.title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .basicMarquee()
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    state.artist,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = cs.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                // Judul & artis + tombol Favorit
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            state.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .basicMarquee()
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            state.artist,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = cs.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    IconButton(onClick = onToggleFavorite) {
+                        Icon(
+                            if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Hapus dari Favorit" else "Tambah ke Favorit",
+                            tint = if (isFavorite) cs.secondary else cs.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(16.dp))
 
@@ -258,28 +280,39 @@ fun NowPlayingScreen(
                         delay(1000)
                     }
                 }
-                val sleepLabel = sleepEndsAt?.let { "Berhenti ${formatTime(it - now)}" } ?: "Timer Tidur"
+                val sleepLabel = sleepEndsAt?.let { formatTime(it - now) } ?: "Timer Tidur"
+                val speedChanged = state.speed != 1f || state.pitchSemitones != 0f
+                val speedLabel = if (speedChanged) {
+                    val p = state.pitchSemitones.roundToInt()
+                    String.format(Locale.US, "%.2f", state.speed).trimEnd('0').trimEnd('.') + "x" + if (p != 0) " • ${if (p > 0) "+" else ""}$p" else ""
+                } else "Kecepatan"
 
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                        .padding(bottom = 12.dp)
                 ) {
-                    TextButton(onClick = { showSleep = true }) {
-                        Icon(
-                            Icons.Rounded.Timer,
-                            contentDescription = null,
-                            tint = if (sleepEndsAt != null) cs.primary else cs.onSurfaceVariant
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(sleepLabel, color = if (sleepEndsAt != null) cs.primary else cs.onSurface)
-                    }
-                    TextButton(onClick = onOpenEq) {
-                        Icon(Icons.Rounded.GraphicEq, contentDescription = null, tint = cs.onSurfaceVariant)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Equalizer", color = cs.onSurface)
-                    }
+                    BottomAction(
+                        icon = Icons.Rounded.Timer,
+                        label = sleepLabel,
+                        active = sleepEndsAt != null,
+                        modifier = Modifier.weight(1f),
+                        onClick = { showSleep = true }
+                    )
+                    BottomAction(
+                        icon = Icons.Rounded.Speed,
+                        label = speedLabel,
+                        active = speedChanged,
+                        modifier = Modifier.weight(1f),
+                        onClick = onSpeed
+                    )
+                    BottomAction(
+                        icon = Icons.Rounded.GraphicEq,
+                        label = "Equalizer",
+                        active = false,
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenEq
+                    )
                 }
             }
         }
@@ -322,6 +355,33 @@ fun NowPlayingScreen(
                 TextButton(onClick = { showSleep = false }) { Text("Tutup") }
             },
             containerColor = cs.surfaceContainerHigh
+        )
+    }
+}
+
+@Composable
+private fun BottomAction(
+    icon: ImageVector,
+    label: String,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val cs = MaterialTheme.colorScheme
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, contentDescription = null, tint = if (active) cs.primary else cs.onSurfaceVariant)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (active) cs.primary else cs.onSurface,
+            maxLines = 1
         )
     }
 }

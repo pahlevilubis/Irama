@@ -1,6 +1,7 @@
 package com.irama.player.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -9,6 +10,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +53,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.irama.player.audio.AudioFx
 import com.irama.player.audio.SleepTimer
+import com.irama.player.data.MediaFiles
+import com.irama.player.data.MediaOps
 import com.irama.player.download.ShareInbox
 import com.irama.player.download.YtDownloader
 
@@ -150,10 +154,15 @@ private fun PermissionScreen(askedOnce: Boolean, onRequest: () -> Unit, onOpenSe
 
 @Composable
 private fun MainScreen(vm: PlayerViewModel) {
+    val context = LocalContext.current
     val songs by vm.songs.collectAsStateWithLifecycle()
+    val sortedSongs by vm.sortedSongs.collectAsStateWithLifecycle()
     val albums by vm.albums.collectAsStateWithLifecycle()
     val artists by vm.artists.collectAsStateWithLifecycle()
     val folders by vm.folders.collectAsStateWithLifecycle()
+    val playlists by vm.playlists.collectAsStateWithLifecycle()
+    val favoriteIds by vm.favoriteIds.collectAsStateWithLifecycle()
+    val sort by vm.sort.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
     val state by vm.ui.collectAsStateWithLifecycle()
     val fx by AudioFx.state.collectAsStateWithLifecycle()
@@ -163,9 +172,45 @@ private fun MainScreen(vm: PlayerViewModel) {
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     var showEq by rememberSaveable { mutableStateOf(false) }
     var showDownload by rememberSaveable { mutableStateOf(false) }
+    var showRecorder by rememberSaveable { mutableStateOf(false) }
+    var picker by remember { mutableStateOf<PickerRequest?>(null) }
+    var dialog by remember { mutableStateOf<LibDialog?>(null) }
+
+    // Pesan singkat dari ViewModel
+    LaunchedEffect(Unit) {
+        vm.messages.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+
+    // Hapus / ganti nama / pindah: minta izin sistem Android dulu kalau perlu
+    var pendingOp by remember { mutableStateOf<MediaOps.Op?>(null) }
+    val opLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
+        val op = pendingOp
+        pendingOp = null
+        if (op != null && result.resultCode == Activity.RESULT_OK) {
+            vm.runOp(op, systemDeleted = op is MediaOps.Delete && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+        }
+    }
+    val runOp: (MediaOps.Op) -> Unit = { op ->
+        val sender = try {
+            MediaOps.permissionRequest(context, op)
+        } catch (e: Exception) {
+            null
+        }
+        if (sender != null) {
+            pendingOp = op
+            opLauncher.launch(IntentSenderRequest.Builder(sender).build())
+        } else {
+            vm.runOp(op, systemDeleted = false)
+        }
+    }
+    LaunchedEffect(Unit) {
+        vm.permissionRequests.collect { (op, sender) ->
+            pendingOp = op
+            opLauncher.launch(IntentSenderRequest.Builder(sender).build())
+        }
+    }
 
     // Link YouTube yang dibagikan ke Irama → buka layar Download dan langsung proses
-    val context = LocalContext.current
     val shared by ShareInbox.pending.collectAsStateWithLifecycle()
     LaunchedEffect(shared) {
         val text = shared ?: return@LaunchedEffect
@@ -173,12 +218,30 @@ private fun MainScreen(vm: PlayerViewModel) {
         if (YtDownloader.enqueue(text)) {
             showPlayer = false
             showEq = false
+            showRecorder = false
+            picker = null
             showDownload = true
         } else {
             Toast.makeText(context, "Yang dibagikan bukan link YouTube", Toast.LENGTH_SHORT).show()
         }
     }
 
+    // Isi layar daftar (album/folder/playlist) ikut ter-update setelah lagu diubah
+    val byId = remember(songs) { songs.associateBy { it.id } }
+    val liveDetail: Detail? = detail?.let { d ->
+        when (d.kind) {
+            DetailKind.PLAYLIST -> playlists.firstOrNull { it.id == d.key }?.let { p -> d.copy(title = p.name, songs = p.songs) }
+            DetailKind.FOLDER -> folders.firstOrNull { it.key == d.key }
+                ?.let { g -> d.copy(title = g.name, subtitle = g.key, songs = g.songs) }
+                ?: d.copy(songs = emptyList())
+            DetailKind.LIST -> d.copy(songs = d.songs.mapNotNull { byId[it.id] })
+        }
+    }
+    LaunchedEffect(liveDetail == null, detail != null) {
+        if (liveDetail == null && detail != null) detail = null // playlist sudah dihapus
+    }
+
+    val play: PlayAction = { list, index, shuffle -> vm.play(list, index, shuffle) }
     val miniPlayer: @Composable () -> Unit = {
         MiniPlayer(
             state = state,
@@ -187,32 +250,97 @@ private fun MainScreen(vm: PlayerViewModel) {
             onNext = vm::next,
         )
     }
-    val play: PlayAction = { list, index, shuffle -> vm.play(list, index, shuffle) }
     val fxLabel = if (!fx.enabled) "Efek: mati" else "Mode: ${fx.preset}"
+
+    val actions = LibraryActions(
+        vm = vm,
+        allSongs = { sortedSongs },
+        folders = { folders },
+        playlists = { playlists },
+        runOp = runOp,
+        openPicker = { picker = it },
+        show = { dialog = it },
+        onFolderRenamed = { oldKey, newKey ->
+            val d = detail
+            if (d != null && d.kind == DetailKind.FOLDER && d.key == oldKey) detail = d.copy(key = newKey)
+        },
+        share = { song ->
+            try {
+                MediaFiles.share(context, song)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Tidak bisa membagikan lagu ini", Toast.LENGTH_SHORT).show()
+            }
+        },
+    )
+    val homeCallbacks = HomeCallbacks(
+        onPlay = play,
+        onOpenDetail = { detail = it },
+        onOpenEq = { showEq = true },
+        onOpenDownload = { showDownload = true },
+        onOpenRecorder = { showRecorder = true },
+        onRefresh = vm::reloadLibrary,
+        onSortChange = vm::setSort,
+        onSongMore = { dialog = LibDialog.SongMenu(it) },
+        onFolderMore = { dialog = LibDialog.FolderMenu(it) },
+        onNewFolder = { dialog = LibDialog.NewFolder(null) },
+        onPlaylistMore = { dialog = LibDialog.PlaylistMenu(it) },
+        onNewPlaylist = { dialog = LibDialog.NewPlaylist(null) },
+    )
 
     Box(Modifier.fillMaxSize()) {
         HomeScreen(
-            songs = songs,
+            songs = sortedSongs,
             albums = albums,
             artists = artists,
             folders = folders,
+            playlists = playlists,
+            favoriteIds = favoriteIds,
+            sort = sort,
             loading = loading,
             state = state,
-            overlayOpen = detail != null || showPlayer || showEq || showDownload,
-            onPlay = play,
-            onOpenDetail = { detail = it },
-            onOpenEq = { showEq = true },
-            onOpenDownload = { showDownload = true },
-            onRefresh = vm::reloadLibrary,
+            overlayOpen = detail != null || showPlayer || showEq || showDownload || showRecorder || picker != null,
+            cb = homeCallbacks,
             miniPlayer = miniPlayer,
         )
 
-        SlideLayer(detail) { d ->
+        SlideLayer(liveDetail) { d ->
+            val playlist = if (d.kind == DetailKind.PLAYLIST) playlists.firstOrNull { it.id == d.key } else null
+            val folder = if (d.kind == DetailKind.FOLDER) folders.firstOrNull { it.key == d.key } else null
             DetailScreen(
                 detail = d,
                 state = state,
+                favoriteIds = favoriteIds,
                 onBack = { detail = null },
                 onPlay = play,
+                onSongMore = { s -> dialog = LibDialog.SongMenu(s, playlist) },
+                onMore = when {
+                    playlist != null -> {
+                        { dialog = LibDialog.PlaylistMenu(playlist) }
+                    }
+                    folder != null -> {
+                        { dialog = LibDialog.FolderMenu(folder) }
+                    }
+                    else -> null
+                },
+                onAddSongs = when {
+                    playlist != null -> {
+                        {
+                            picker = PickerRequest("Tambah ke \"${playlist.name}\"", "Tambah", sortedSongs) { chosen ->
+                                vm.addToPlaylist(playlist.id, chosen)
+                            }
+                        }
+                    }
+                    folder != null -> {
+                        {
+                            picker = PickerRequest(
+                                "Pindahkan ke \"${folder.name}\"",
+                                "Pindahkan",
+                                sortedSongs.filter { it.folder != folder.key }
+                            ) { chosen -> runOp(MediaOps.Move(chosen, folder.key, folder.name)) }
+                        }
+                    }
+                    else -> null
+                },
                 miniPlayer = miniPlayer,
             )
         }
@@ -221,7 +349,16 @@ private fun MainScreen(vm: PlayerViewModel) {
             DownloadScreen(onBack = { showDownload = false }, miniPlayer = miniPlayer)
         }
 
+        SlideLayer(if (showRecorder) Unit else null) {
+            RecorderScreen(onBack = { showRecorder = false }, onPauseMusic = vm::pause)
+        }
+
+        SlideLayer(picker, fromBottom = true) { req ->
+            SongPickerScreen(req, onClose = { picker = null })
+        }
+
         SlideLayer(if (showPlayer && state.hasMedia) Unit else null, fromBottom = true) {
+            val currentSong = vm.songByMediaId(state.mediaId)
             NowPlayingScreen(
                 state = state,
                 fxLabel = fxLabel,
@@ -237,6 +374,10 @@ private fun MainScreen(vm: PlayerViewModel) {
                 onSleep = { minutes ->
                     if (minutes == null) SleepTimer.cancel() else SleepTimer.start(minutes)
                 },
+                isFavorite = currentSong != null && currentSong.id in favoriteIds,
+                onToggleFavorite = { currentSong?.let { vm.toggleFavorite(it) } },
+                onMore = { currentSong?.let { dialog = LibDialog.SongMenu(it) } },
+                onSpeed = { dialog = LibDialog.SpeedPitch },
             )
         }
 
@@ -245,11 +386,15 @@ private fun MainScreen(vm: PlayerViewModel) {
         }
     }
 
+    LibraryDialogHost(dialog = dialog, favoriteIds = favoriteIds, state = state, actions = actions)
+
     // Tombol Back: tutup lapisan paling atas dulu
-    BackHandler(enabled = showEq || showPlayer || showDownload || detail != null) {
+    BackHandler(enabled = showEq || showPlayer || picker != null || showRecorder || showDownload || detail != null) {
         when {
             showEq -> showEq = false
             showPlayer -> showPlayer = false
+            picker != null -> picker = null
+            showRecorder -> showRecorder = false
             showDownload -> showDownload = false
             else -> detail = null
         }
