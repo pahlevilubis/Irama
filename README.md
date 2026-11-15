@@ -13,6 +13,8 @@ Aplikasi pemutar lagu yang sudah ada di HP (offline), dibuat untuk Samsung Galax
 - **13 Mode Suara**: Normal, Bass Mantap, Pop, Rock, Dangdut, Jazz, Klasik, Vokal, Hip-Hop, Elektronik, Akustik, Treble, Santai (+ Kustom)
 - **Efek**: Bass Boost, Surround 3D, Penguat Volume — semua tersimpan otomatis
 - **Acak (shuffle)**, **Ulangi** (semua / satu lagu), **Timer Tidur** (15–90 menit)
+- **Buka dengan Irama** — file audio di My Files, WhatsApp, Voice Recorder, dll. bisa dibuka langsung
+  dengan Irama (pilih *Always* supaya otomatis)
 - **Kelola lagu** (ketuk ⋮ atau tekan lama sebuah lagu): putar berikutnya, tambah ke antrean,
   favorit ♥, tambah ke playlist, **ganti nama**, **pindah ke folder / folder baru**, bagikan ke WhatsApp,
   info lagu, **hapus**. Di tab Folder: buat folder baru, ganti nama folder, hapus folder.

@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.irama.player.download.OpenInbox
 import com.irama.player.download.ShareInbox
 import com.irama.player.ui.IramaRoot
 import com.irama.player.ui.IramaTheme
@@ -35,6 +36,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleShare(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) {
+            intent.data?.let { OpenInbox.offer(it) }
+            return
+        }
         if (intent?.action != Intent.ACTION_SEND) return
         if (intent.type?.startsWith("text/") != true) return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return

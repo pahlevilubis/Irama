@@ -2,13 +2,18 @@ package com.irama.player.ui
 
 import android.app.Application
 import android.content.ComponentName
+import android.content.ContentUris
 import android.content.Context
 import android.content.IntentSender
 import android.net.Uri
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -43,6 +48,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -165,6 +171,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 controller = c
                 c.addListener(listener)
                 refresh()
+                pendingExternal?.let {
+                    pendingExternal = null
+                    openExternal(it)
+                }
             }
         }, ContextCompat.getMainExecutor(ctx))
 
@@ -340,6 +350,90 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             speed = params.speed,
             pitchSemitones = ((12.0 * ln(params.pitch.toDouble()) / ln(2.0)) * 2).roundToInt() / 2f,
         )
+    }
+
+    // ---------- Buka file dari aplikasi lain ("Buka dengan → Irama") ----------
+
+    private var pendingExternal: Uri? = null
+
+    private val _openPlayer = MutableStateFlow(false)
+    /** True kalau layar pemutar perlu dibuka (setelah membuka file dari luar). */
+    val openPlayer: StateFlow<Boolean> = _openPlayer.asStateFlow()
+
+    fun consumeOpenPlayer() {
+        _openPlayer.value = false
+    }
+
+    fun openExternal(uri: Uri) {
+        val c = controller
+        if (c == null) {
+            pendingExternal = uri // diputar begitu pemutar siap
+            return
+        }
+        viewModelScope.launch {
+            // Tunggu daftar lagu selesai dimuat (sebentar saja) supaya bisa dicocokkan
+            withTimeoutOrNull(3000) { loadJob?.join() }
+            val ctx = getApplication<Application>()
+            val info = withContext(Dispatchers.IO) { describeUri(ctx, uri) }
+            val library = _songs.value
+            val match = library.firstOrNull { it.mediaId == info.mediaStoreId }
+                ?: info.displayName?.let { name ->
+                    library.firstOrNull { it.displayName == name && (info.size <= 0 || it.sizeBytes == info.size) }
+                }
+
+            if (match != null) {
+                // Lagu ada di daftar: putar bersama lagu lain di folder yang sama
+                val folderSongs = library.filter { it.folder == match.folder }
+                play(folderSongs, folderSongs.indexOf(match).coerceAtLeast(0))
+            } else {
+                val title = info.displayName?.substringBeforeLast('.')?.ifBlank { null } ?: "Audio"
+                val item = MediaItem.Builder()
+                    .setMediaId(uri.toString())
+                    .setUri(uri)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(title)
+                            .setArtist("Dibuka dari aplikasi lain")
+                            .build()
+                    )
+                    .build()
+                c.setMediaItems(listOf(item))
+                c.shuffleModeEnabled = false
+                c.prepare()
+                c.play()
+            }
+            _openPlayer.value = true
+        }
+    }
+
+    private class UriInfo(val displayName: String?, val size: Long, val mediaStoreId: String?)
+
+    private fun describeUri(ctx: Context, uri: Uri): UriInfo {
+        // URI MediaStore (content://media/...): samakan dengan format ID di daftar lagu
+        val mediaStoreId = if (uri.authority == MediaStore.AUTHORITY) {
+            try {
+                ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, ContentUris.parseId(uri)).toString()
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+        var name: String? = null
+        var size = -1L
+        try {
+            ctx.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+                ?.use { c ->
+                    if (c.moveToFirst()) {
+                        val ni = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val si = c.getColumnIndex(OpenableColumns.SIZE)
+                        if (ni >= 0 && !c.isNull(ni)) name = c.getString(ni)
+                        if (si >= 0 && !c.isNull(si)) size = c.getLong(si)
+                    }
+                }
+        } catch (e: Exception) {
+            // sebagian aplikasi tidak memberi info nama file
+        }
+        if (name == null) name = uri.lastPathSegment?.substringAfterLast('/')
+        return UriInfo(name, size, mediaStoreId)
     }
 
     // ---------- Playlist & Favorit ----------

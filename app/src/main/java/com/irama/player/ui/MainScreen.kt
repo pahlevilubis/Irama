@@ -55,6 +55,7 @@ import com.irama.player.audio.AudioFx
 import com.irama.player.audio.SleepTimer
 import com.irama.player.data.MediaFiles
 import com.irama.player.data.MediaOps
+import com.irama.player.download.OpenInbox
 import com.irama.player.download.ShareInbox
 import com.irama.player.download.YtDownloader
 
@@ -79,6 +80,14 @@ fun IramaRoot(vm: PlayerViewModel = viewModel()) {
     // Cek ulang saat kembali dari Pengaturan
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { granted = isGranted() }
     LaunchedEffect(granted) { if (granted) vm.ensureLoaded() }
+
+    // File audio yang dibuka lewat "Buka dengan → Irama" (tetap diputar walau izin belum diberikan)
+    val opened by OpenInbox.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(opened) {
+        val uri = opened ?: return@LaunchedEffect
+        OpenInbox.consume()
+        vm.openExternal(uri)
+    }
 
     if (granted) {
         MainScreen(vm)
@@ -207,6 +216,20 @@ private fun MainScreen(vm: PlayerViewModel) {
         vm.permissionRequests.collect { (op, sender) ->
             pendingOp = op
             opLauncher.launch(IntentSenderRequest.Builder(sender).build())
+        }
+    }
+
+    // File dibuka dari aplikasi lain → langsung tampilkan layar pemutar
+    val openPlayer by vm.openPlayer.collectAsStateWithLifecycle()
+    LaunchedEffect(openPlayer) {
+        if (openPlayer) {
+            vm.consumeOpenPlayer()
+            showEq = false
+            showRecorder = false
+            showDownload = false
+            picker = null
+            dialog = null
+            showPlayer = true
         }
     }
 

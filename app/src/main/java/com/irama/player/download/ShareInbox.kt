@@ -1,5 +1,6 @@
 package com.irama.player.download
 
+import android.net.Uri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,6 +12,20 @@ object ShareInbox {
 
     fun offer(text: String) {
         _pending.value = text
+    }
+
+    fun consume() {
+        _pending.value = null
+    }
+}
+
+/** Menampung file audio yang dibuka lewat "Buka dengan → Irama". */
+object OpenInbox {
+    private val _pending = MutableStateFlow<Uri?>(null)
+    val pending: StateFlow<Uri?> = _pending.asStateFlow()
+
+    fun offer(uri: Uri) {
+        _pending.value = uri
     }
 
     fun consume() {
