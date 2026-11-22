@@ -16,13 +16,17 @@ android {
         versionName = "1.4"
     }
 
-    // Kunci tanda tangan tetap, supaya update APK bisa langsung ditimpa tanpa uninstall
+    // Kunci tanda tangan diambil dari GitHub Secrets (KEYSTORE_BASE64 dan KEYSTORE_PASSWORD).
+    // Workflow menaruh file kuncinya di KEYSTORE_FILE saat build; file kunci tidak disimpan di repo.
+    val releaseKeystore = System.getenv("KEYSTORE_FILE")
     signingConfigs {
-        create("irama") {
-            storeFile = file("irama.keystore")
-            storePassword = "irama123"
-            keyAlias = "irama"
-            keyPassword = "irama123"
+        if (releaseKeystore != null) {
+            create("irama") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = "irama"
+                keyPassword = System.getenv("KEYSTORE_PASSWORD")
+            }
         }
     }
 
@@ -34,10 +38,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("irama")
+            signingConfig = if (releaseKeystore != null) signingConfigs.getByName("irama") else signingConfigs.getByName("debug")
         }
         debug {
-            signingConfig = signingConfigs.getByName("irama")
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("irama")
         }
     }
 
